@@ -1,88 +1,117 @@
 -- MADE BY 3ndermybel0ved
 -- send issues or suggestions to my discord: discord.gg/SAcF7HEnyc
 
-StarterGui:SetCore("SendNotification", {
+game.StarterGui:SetCore("SendNotification", {
     Title = "discord.gg/SAcF7HEnyc",
-    Text = "Tracers Loaded!",
+    Text = "Tracers Loaded!!",
     Duration = math.huge,
     Button1 = "Okay"
 })
 
-local TargetPartName = "HumanoidRootPart"
-local GenericHumanoidTargetPartName = TargetPartName
-local LineColor = Color3.new(255, 255, 255)
-local TeammateLineColor = Color3.new(0, 0.25, 1)
-local GenericHumanoidLineColor = Color3.new(1, 0, 0)
-local LineWidth = 2
-local DrawTeammates = true
-local FindHumanoids = true
-local GetLineOrigin = function(Camera)
-	return Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y*.9)
+local workspace = game:GetService("Workspace")
+local player = game:GetService("Players").LocalPlayer
+local camera = workspace.CurrentCamera
+
+--// Settings:
+local on = true -- Use this if your making gui
+
+local Tracers = true
+local Tracer_Color = Color3.fromRGB(0, 255, 50)
+local Tracer_Thickness = 1.4
+local Tracer_Transparency = 1 -- 1 Visible, 0 Not Visible
+
+local function NewLine()
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.From = Vector2.new(0, 0)
+    line.To = Vector2.new(1, 1)
+    line.Color = Tracer_Color
+    line.Thickness = Tracer_Thickness
+    line.Transparency = Tracer_Transparency
+    return line
 end
 
-local Camera = workspace.CurrentCamera
-local LineOrigin = nil
-Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-	LineOrigin = GetLineOrigin(Camera)
-end)
-LineOrigin = GetLineOrigin(Camera)
+--// Main Function:
+for i, v in pairs(game.Players:GetChildren()) do
+    local lines = {
+        Tracer = NewLine()
+    }
 
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "SnaplineGui"
-Gui.Parent = game.Players.LocalPlayer.PlayerGui
-local Lines = {}
+    --// Tracer settings:
+    lines.Tracer.Color = Tracer_Color
+    lines.Tracer.Thickness = Tracer_Thickness
+    lines.Tracer.Transparency = Tracer_Transparency
 
-function Setline(Line, Width, Color, Origin, Destination)
-	local Position = (Origin + Destination) / 2
-	Line.Position = UDim2.new(0, Position.X, 0, Position.Y)
-	local Length = (Origin - Destination).Magnitude
-	Line.BackgroundColor3 = Color
-	Line.BorderSizePixel = 0
-	Line.Size = UDim2.new(0, Length, 0, Width)
-	Line.Rotation = math.deg(math.atan2(Destination.Y - Origin.Y, Destination.X - Origin.X))
+    --// Updates ESP (lines) in render loop
+    local function ESP()
+        local connection
+        connection = game:GetService("RunService").RenderStepped:Connect(function()
+            if on and v.Character ~= nil and v.Character:FindFirstChild("Humanoid") ~= nil and v.Character:FindFirstChild("HumanoidRootPart") ~= nil and v.Name ~= player.Name and v.Character.Humanoid.Health > 0 and v.Character:FindFirstChild("Head") ~= nil then
+                local pos, vis = camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                if vis then
+                    local Scale = v.Character.Head.Size.Y/2
+                    local Size = Vector3.new(2, 3, 1.5) * (Scale * 2) -- Change this for different box size
+
+                    --// Tracer:
+                    if Tracers then
+                        local trace = camera:WorldToViewportPoint((v.Character.HumanoidRootPart.CFrame * CFrame.new(0, -Size.Y, 0)).p)
+                        lines.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+                        lines.Tracer.To = Vector2.new(trace.X, trace.Y)
+                    end
+
+                    lines.Tracer.Visible = true
+                else 
+                    lines.Tracer.Visible = false
+                end
+            else 
+                lines.Tracer.Visible = false
+                if game.Players:FindFirstChild(v.Name) == nil then
+                    connection:Disconnect()
+                end
+            end
+        end)
+    end
+    coroutine.wrap(ESP)()
 end
 
-game:GetService("RunService").RenderStepped:Connect(function()
-	local Targets = {}
-	for i, Player in pairs(game.Players:GetPlayers()) do
-		if Player == game.Players.LocalPlayer then continue end
-		local IsTeammate = game.Players.LocalPlayer.Team ~= nil and Player.Team == game.Players.LocalPlayer.Team
-		if not DrawTeammates and IsTeammate then continue end
-		local Character = Player.Character
-		if not Character then continue end
-		local TargetPart = Character:FindFirstChild(TargetPartName)
-		if not TargetPart then continue end
-		local ScreenPoint, OnScreen = Camera:WorldToScreenPoint(TargetPart.Position)
-		if OnScreen then
-			table.insert(Targets, {Vector2.new(ScreenPoint.X, ScreenPoint.Y), IsTeammate and TeammateLineColor or LineColor})
-		end
-	end
-	if FindHumanoids then
-		for _, Obj in pairs(workspace:GetDescendants()) do
-			if Obj.ClassName ~= "Humanoid" then continue end
-			if game.Players:FindFirstChild(Obj.Parent.Name) then continue end
-			local TargetPart = Obj.Parent:FindFirstChild(TargetPartName)
-			if not TargetPart then continue end
-			local ScreenPoint, OnScreen = Camera:WorldToScreenPoint(TargetPart.Position)
-			if OnScreen then
-				table.insert(Targets, {Vector2.new(ScreenPoint.X, ScreenPoint.Y), GenericHumanoidLineColor})
-			end
-		end
-	end
-	if #Targets > #Lines then
-		local NewLine = Instance.new("Frame")
-		NewLine.Name = "Snapline"
-		NewLine.AnchorPoint = Vector2.new(.5, .5)
-		NewLine.Parent = Gui
-		table.insert(Lines, NewLine)
-	end
-	for i, Line in pairs(Lines) do
-		local TargetData = Targets[i]
-		if not TargetData then
-			Line:Destroy()
-			table.remove(Lines, i)
-			continue
-		end
-		Setline(Line, LineWidth, TargetData[2], LineOrigin, TargetData[1])
-	end
+game.Players.PlayerAdded:Connect(function(newplr)
+    local lines = {
+        Tracer = NewLine()
+    }
+
+    --// Tracer settings:
+    lines.Tracer.Color = Tracer_Color
+    lines.Tracer.Thickness = Tracer_Thickness
+    lines.Tracer.Transparency = Tracer_Transparency
+
+    --// Updates ESP (lines) in render loop
+    local function ESP()
+        local connection
+        connection = game:GetService("RunService").RenderStepped:Connect(function()
+            if on and newplr.Character ~= nil and newplr.Character:FindFirstChild("Humanoid") ~= nil and newplr.Character:FindFirstChild("HumanoidRootPart") ~= nil and newplr.Name ~= player.Name and newplr.Character.Humanoid.Health > 0 and newplr.Character:FindFirstChild("Head") ~= nil then
+                local pos, vis = camera:WorldToViewportPoint(newplr.Character.HumanoidRootPart.Position)
+                if vis then
+                    local Scale = newplr.Character.Head.Size.Y/2
+                    local Size = Vector3.new(2, 3, 1.5) * (Scale * 2) -- Change this for different box size
+
+                    --// Tracer:
+                    if Tracers then
+                        local trace = camera:WorldToViewportPoint((newplr.Character.HumanoidRootPart.CFrame * CFrame.new(0, -Size.Y, 0)).p)
+                        lines.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+                        lines.Tracer.To = Vector2.new(trace.X, trace.Y)
+                    end
+
+                    lines.Tracer.Visible = true
+                else 
+                    lines.Tracer.Visible = false
+                end
+            else 
+                lines.Tracer.Visible = false
+                if game.Players:FindFirstChild(newplr.Name) == nil then
+                    connection:Disconnect()
+                end
+            end
+        end)
+    end
+    coroutine.wrap(ESP)()
 end)
